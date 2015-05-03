@@ -1,29 +1,33 @@
-getEulerAngles = function(q){
-	return {
-		roll : Math.atan2(2.0*(q.y*q.z + q.w*q.x), q.w*q.w - q.x*q.x - q.y*q.y + q.z*q.z),
-		pitch : Math.asin(-2.0*(q.x*q.z - q.w*q.y)),
-		yaw : Math.atan2(2.0*(q.x*q.y + q.w*q.z), q.w*q.w + q.x*q.x - q.y*q.y - q.z*q.z)
-	}
-}
+var XXX  = 0;
+var zeroQ = new THREE.Quaternion(0,0,0,1);
 
-Myo.on('orientation', function(quanternion){
-	var angles = getEulerAngles(quanternion);
-	var x = Math.sin(angles.yaw) * Math.cos(angles.pitch)
-	var y = Math.sin(angles.pitch)
-	this.trigger('vector', [x,y]);
+Myo.on('orientation', function(quat){
+	if (XXX == 0) {
+		console.log(myo.direction);
+		zeroQ = new THREE.Quaternion(quat.x, quat.y, quat.z, quat.w);
+		zeroQ.inverse();
+		XXX = 1;
+		return;
+	}
+	var q = new THREE.Quaternion(quat.x, quat.y, quat.z, quat.w)
+	var xVec = new THREE.Vector3(-1, 0, 0);
+	xVec.applyQuaternion( q );
+	xVec.applyQuaternion( zeroQ );
+	if (myo.direction == 'toward_elbow') {
+		xVec.z =  -xVec.z
+	}
+	this.trigger('vector', xVec);
 })
 
-
-
 var gridSize = 0.2;
-Myo.on('vector', function(coords){
+Myo.on('vector', function(v){
 
-	var x = coords[0];
-	var y = coords[1];
+	var x = v.y;
+	var y = v.z;
 
 	var getSide = function(x){
-		if(x < -gridSize) return 'right';
-		if(x > gridSize) return 'left';
+		if(x < -gridSize) return 'left';
+		if(x > gridSize) return 'right';
 		return 'center';
 	}
 

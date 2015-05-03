@@ -1,17 +1,5 @@
 var myo = Myo.create();
 
-myo.on('pushup', function(){
-	console.log('PUSHUP');
-});
-
-
-getEulerAngles = function(q){
-	return {
-		roll : Math.atan2(2.0*(q.y*q.z + q.w*q.x), q.w*q.w - q.x*q.x - q.y*q.y + q.z*q.z),
-		pitch : Math.asin(-2.0*(q.x*q.z - q.w*q.y)),
-		yaw : Math.atan2(2.0*(q.x*q.y + q.w*q.z), q.w*q.w + q.x*q.x - q.y*q.y - q.z*q.z)
-	}
-}
 
 
 var getDummyData = function(){
@@ -25,7 +13,6 @@ var data = {
 	y : getDummyData(),
 	z : getDummyData()
 };
-
 
 
 var genData = function(){
@@ -48,50 +35,21 @@ var graph = $.plot('#plot', genData(),{
 	},*/
 });
 
-var addData = function(angles){
-
-	//console.log(angles);
-
+var addData = function(v){
 	data.x.shift();
 	data.y.shift();
 	data.z.shift();
 
-	var x = Math.cos(angles.yaw) * Math.cos(angles.pitch)
-	var y = Math.sin(angles.yaw) * Math.cos(angles.pitch)
-	var z = Math.sin(angles.pitch)
-
-	data.x.push(Math.cos(angles.yaw) * Math.cos(angles.pitch))
-	data.y.push(Math.sin(angles.yaw) * Math.cos(angles.pitch))
-	data.z.push(Math.sin(angles.pitch))
-
-
-
+	data.x.push(v.x)
+	data.y.push(v.y)
+	data.z.push(v.z)
 }
 
-
-myo.on('vector', function(coords){
-	$('#x').width(300 + -300*coords[0]);
-	$('#y').height(300 + 300*coords[1]);
-})
-
-
-var prevVal = 0;
-
-
-myo.on('orientation', function(o){
-	var ea = getEulerAngles(o)
-
-	addData(ea);
+myo.on('vector', function(v){
+	addData(v);
 	graph.setData(genData());
 	graph.draw();
-
-	$('#roll').text(ea.roll);
-
 });
-
-myo.on('fist', function(){
-	myo.zeroOrientation();
-})
 
 myo.on('grid', function(grid){
 
@@ -111,3 +69,61 @@ myo.on('grid', function(grid){
 	$('#grid' + gridNumber).addClass('show');
 
 })
+
+
+var	jabState = 'idle'
+var	jabMaxAccel = 0
+var	jabMinAccel = 0
+
+function setJabState(newState) {
+	if (newState != jabState) {
+		console.log(jabState + " --> " + newState);
+		jabState = newState;
+	}
+}
+
+function trustDetected(x) {
+	setJabState('trusting');
+	jabMaxAccel = x
+	jabMinAccel = x
+	setTimeout(function(){ jabTimeout(); }, 250);
+}
+
+function hitStarted() {
+	setJabState('hitting');
+}
+
+function hitFinished() {
+	reportHit(jabMaxAccel - jabMinAccel)
+	setJabState('hit');
+}
+
+function reportHit() {
+	console.log("hit with strength " + jabMaxAccel)
+}
+
+function jabTimeout() {
+	if (jabState == 'hitting') {
+		hitFinished()
+	}
+	setJabState('idle')
+	jabMaxAccel = 0
+	jabMinAccel = 0
+}
+
+myo.on('accelerometer', function(accel) {
+	if (jabState == 'idle' && accel.x > 1.5) {
+		trustDetected(accel.x)
+	} else if (jabState == 'trusting' || jabState == 'hitting' ) {
+		if (accel.x > jabMaxAccel) {
+			jabMaxAccel = accel.x;
+		}
+		if (accel.x < jabMinAccel) {
+			jabMinAccel = accel.x;
+		}
+		if (jabState == 'trusting' && jabMaxAccel - jabMinAccel > 2.5) {
+			hitStarted();
+		}
+	}
+
+});
